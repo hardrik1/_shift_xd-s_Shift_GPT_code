@@ -1,1 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0a0a23" />
+  <meta name="description" content="Shift_GPT - AI-powered multi-tool platform">
+  <title>Shift_GPT</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
+  <style>
+    :root {
+      --indigo-500: #6366f1;
+      --pink-500: #ec4899;
+      --gray-900: #111827;
+      --gray-800: #1f2937;
+    }
+    
+    body {
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      font-family: 'Poppins', sans-serif;
+      overflow-x: hidden;
+      color: white;
+      min-height: 100vh;
+    }
+    
+    .neon-text {
+      text-shadow: 0 0 10px rgba(99, 102, 241, 0.7), 0 0 20px rgba(236, 72, 153, 0.5);
+    }
+    
+    .glow-border {
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.5), inset 0 0 10px rgba(99, 102, 241, 0.3);
+    }
+    
+    .tool-card {
+      transition: all 0.3s ease;
+      background: rgba(30, 30, 60, 0.6);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 1rem;
+    }
+    
+    .tool-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);
+      border-color: rgba(236, 72, 153, 0.5);
+    }
+    
+    .response-box {
+      background: rgba(30, 30, 60, 0.6);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 0.75rem;
+    }
+    
+    .floating {
+      animation: float 4s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+      100% { transform: translateY(0px); }
+    }
+    
+    .pulsing {
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 0.7; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+    
+    .grid-bg {
+      background-image: 
+        linear-gradient(rgba(99, 102, 241, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99, 102, 241, 0.1) 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+    
+    .error-badge {
+      background: rgba(220, 38, 38, 0.2);
+      border: 1px solid rgba(220, 38, 38, 0.5);
+    }
+    
+    .success-badge {
+      background: rgba(22, 163, 74, 0.2);
+      border: 1px solid rgba(22, 163, 74, 0.5);
+    }
+    
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+    }
+    
+    .status-active {
+      background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+    
+    .status-error {
+      background-color: #ef4444;
+      box-shadow: 0 0 8px #ef4444;
+    }
+    
+    .retry-button {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid var(--indigo-500);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
 
+    // Enhanced API call function with retry logic and improved error handling
+    const callOpenRouterAPI = async (tool, input, imageUrl = null, retryCount = 0) => {
+      const maxRetries = 2;
+      const retryDelay = 1000; // 1 second delay between retries
+      
+      const prompts = {
+        chat: `You are Shift_GPT, a conversational AI. Respond to: ${input}`,
+        guess: `Play a 20 questions game to guess the user's word. Ask yes/no questions. Current input: ${input}`,
+        summarize: `Summarize this text into concise bullet points: ${input}`,
+        plagiarism: `Analyze the originality of this text and provide a detailed report: ${input}`,
+        tone: `Rewrite this AI-generated text to sound natural and human-like: ${input}`,
+        translate: `Translate this text to the target language specified by the user: ${input}`,
+        code: `Generate code based on this description: ${input}`,
+        grammar: `Check and correct grammar in this text: ${input}`,
+      };
+      
+      try {
+        // Prepare the messages array
+        let messages = [];
+        
+        if (imageUrl) {
+          // For image requests
+          messages = [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompts[tool] },
+                { 
+                  type: 'image_url', 
+                  image_url: { 
+                    url: imageUrl 
+                  } 
+                }
+              ]
+            }
+          ];
+        } else {
+          // For text-only requests
+          messages = [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompts[tool] }
+              ]
+            }
+          ];
+        }
+        
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer <OPENROUTER_API_KEY>',
+            'HTTP-Referer': 'https://shift-gpt.com',
+            'X-Title': 'Shift_GPT',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash-lite-preview-06-17',
+            messages: messages
+          }),
+        });
+        
+        if (!response.ok) {
+          // Handle specific HTTP errors
+          if (response.status === 503 && retryCount < maxRetries) {
+            // Wait and retry
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            return callOpenRouterAPI(tool, input, imageUrl, retryCount + 1);
+          }
+          
+          const errorData = await response.json();
+          throw new Error(`API Error (${response.status}): ${errorData.error?.message || response.statusText}`);
+        }
+        
+        const data = await response.json();
+        return data.choices[0].message.content;
+      } catch (error) {
+        if (retryCount < maxRetries) {
+          // Wait and retry on network errors
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          return callOpenRouterAPI(tool, input, imageUrl, retryCount + 1);
+        }
+        
+        console.error('API call error:', error);
+        return `Error: ${error.message || 'Unable to process request. Please try again later.'}`;
+      }
+    };
+
+    const ToolCard = ({ title, description, icon, onClick }) => (
+      <div
+        className="tool-card p-6 cursor-pointer flex flex-col items-center text-center h-full"
+        onClick={onClick}
+        role="button"
+        aria-label={`Select ${title}`}
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && onClick()}
+      >
+        <div className="text-4xl mb-3 floating">{icon}</div>
+        <h3 className="text-xl font-bold mb-2">{title}</h3>
+        <p className="text-gray-300 text-sm">{description}</p>
+      </div>
+    );
+
+    const ToolInterface = ({ tool, onBack, addToHistory }) => {
+      const [input, setInput] = useState('');
+      const [image, setImage] = useState(null);
+      const [response, setResponse] = useState('');
+      const [loading, setLoading] = useState(false);
+      const [language, setLanguage] = useState('');
+      const [isTyping, setIsTyping] = useState(false);
+      const [apiStatus, setApiStatus] = useState('active');
+      const [errorDetails, setErrorDetails] = useState('');
+      const fileInputRef = useRef(null);
+
+      const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = () => setImage(reader.result);
+          reader.readAsDataURL(file);
+        } else {
+          alert('Please upload a valid image file.');
+        }
+      };
+
+      const handleInputChange = (e) => {
+        setInput(e.target.value);
+        setIsTyping(true);
+        setTimeout(() => setIsTyping(false), 1000);
+      };
+
+      const handleSubmit = async () => {
+        if (!input && !image) {
+          alert('Please enter some text or upload an image');
+          return;
+        }
+        
+        setLoading(true);
+        setResponse('');
+        setErrorDetails('');
+        setApiStatus('active');
+        
+        try {
+          const finalInput = tool === 'translate' ? `${input} (Target language: ${language})` : input;
+          const result = await callOpenRouterAPI(tool, finalInput, image);
+          
+          if (result.startsWith('Error:')) {
+            setApiStatus('error');
+            setErrorDetails(result);
+          } else {
+            setApiStatus('active');
+          }
+          
+          setResponse(result);
+          addToHistory({ tool, input: finalInput, response: result, timestamp: new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }) });
+        } catch (error) {
+          setApiStatus('error');
+          setResponse(`Error: ${error.message || 'An unexpected error occurred'}`);
+          setErrorDetails(error.message || 'Please try again later');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleRetry = () => {
+        if (input || image) {
+          handleSubmit();
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col items-center p-4 sm:p-8 max-w-4xl mx-auto w-full">
+          <button
+            onClick={onBack}
+            className="mb-8 px-6 py-3 bg-indigo-700 hover:bg-indigo-800 rounded-full transition-colors duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-500 w-full sm:w-auto flex items-center"
+            aria-label="Back to hub"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
+            Back to Hub
+          </button>
+          
+          <div className="w-full bg-gray-900/50 backdrop-blur-md rounded-2xl p-6 glow-border mb-8">
+            <div className="flex justify-between items-start mb-4">
+              <h1 className="text-3xl sm:text-4xl font-bold text-center neon-text flex-1">
+                {tool.replace(/\b\w/g, c => c.toUpperCase())}
+              </h1>
+              <div className={`px-3 py-1 rounded-full text-sm flex items-center ${apiStatus === 'active' ? 'success-badge' : 'error-badge'}`}>
+                <span className={`status-indicator ${apiStatus === 'active' ? 'status-active' : 'status-error'}`}></span>
+                {apiStatus === 'active' ? 'API Active' : 'API Issue'}
+              </div>
+            </div>
+            
+            {tool === 'chat' && (
+              <div className="mb-6">
+                <label className="block text-gray-200 mb-3 text-lg font-medium">Upload Image (Optional)</label>
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <button
+                    onClick={() => fileInputRef.current.click()}
+                    className="px-4 py-2 bg-indigo-700 hover:bg-indigo-800 rounded-lg flex items-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                    </svg>
+                    Select Image
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    aria-label="Upload image"
+                  />
+                  {image && (
+                    <div className="flex items-center">
+                      <span className="text-gray-300 mr-2">Image selected</span>
+                      <button 
+                        onClick={() => setImage(null)}
+                        className="text-pink-500 hover:text-pink-400"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {image && (
+                  <div className="mt-4 flex justify-center">
+                    <img 
+                      src={image} 
+                      alt="Preview" 
+                      className="max-w-full h-48 object-contain rounded-xl shadow-lg border border-indigo-500/20" 
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {tool === 'translate' && (
+              <div className="mb-6">
+                <label htmlFor="language" className="block text-gray-200 mb-3 text-lg font-medium">Target Language</label>
+                <input
+                  id="language"
+                  type="text"
+                  placeholder="e.g., Spanish, French, German..."
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="w-full p-4 bg-gray-800 rounded-xl border border-indigo-500/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  aria-label="Target language"
+                />
+              </div>
+            )}
+            
+            <div className="relative mb-6">
+              <textarea
+                className="w-full p-4 bg-gray-800 rounded-xl border border-indigo-500/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300"
+                rows="6"
+                placeholder={`Enter your input for ${tool}...`}
+                value={input}
+                onChange={handleInputChange}
+                aria-label={`${tool} input`}
+              />
+              {isTyping && (
+                <div className="absolute bottom-3 right-3 text-gray-400 text-sm flex items-center">
+                  <span className="mr-2">Typing...</span>
+                  <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={handleSubmit}
+                disabled={loading || (tool === 'translate' && !language)}
+                className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-700 hover:to-pink-700 rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 relative overflow-hidden flex justify-center items-center"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </>
+                ) : (
+                  <span className="font-bold">Submit Request</span>
+                )}
+              </button>
+              
+              {apiStatus === 'error' && (
+                <button
+                  onClick={handleRetry}
+                  className="py-3 retry-button rounded-xl flex justify-center items-center px-4"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                  </svg>
+                  Retry
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {response && (
+            <div className="w-full response-box backdrop-blur-md rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center mr-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white">AI Response</h3>
+                </div>
+                
+                {apiStatus === 'error' && (
+                  <div className="text-sm text-red-400 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    API Issue
+                  </div>
+                )}
+              </div>
+              
+              {apiStatus === 'error' && errorDetails && (
+                <div className="mb-4 p-3 bg-red-900/30 rounded-lg text-sm">
+                  <div className="font-medium mb-1">Error Details:</div>
+                  <div className="text-red-300">{errorDetails}</div>
+                </div>
+              )}
+              
+              <div className="text-gray-200 whitespace-pre-wrap bg-gray-800/30 p-4 rounded-lg">
+                {response}
+              </div>
+            </div>
+          )}
+          
+          {apiStatus === 'error' && (
+            <div className="w-full mt-6 p-4 bg-gray-900/50 rounded-xl border border-red-500/30">
+              <h3 className="font-medium text-red-400 flex items-center mb-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                Troubleshooting Tips
+              </h3>
+              <ul className="text-gray-300 text-sm space-y-1">
+                <li>• Check your internet connection</li>
+                <li>• Simplify your request or use fewer words</li>
+                <li>• Remove any images if not essential</li>
+                <li>• Try again in a few minutes</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const App = () => {
+      const [currentTool, setCurrentTool] = useState(null);
+      const [history, setHistory] = useState([]);
+
+      const tools = [
+        { id: 'chat', title: 'AI Chat', description: 'Conversational AI with image support', icon: '💬' },
+        { id: 'summarize', title: 'Summarizer', description: 'Condense text into key points', icon: '📝' },
+        { id: 'translate', title: 'Translator', description: 'Translate to any language', icon: '🌐' },
+        { id: 'code', title: 'Code Generator', description: 'Generate code from descriptions', icon: '💻' },
+        { id: 'grammar', title: 'Grammar Check', description: 'Correct grammar mistakes', icon: '✍️' },
+        { id: 'plagiarism', title: 'Plagiarism Check', description: 'Verify content originality', icon: '🔍' },
+        { id: 'tone', title: 'Tone Changer', description: 'Make AI text sound human', icon: '🎚️' },
+        { id: 'guess', title: 'Guess My Word', description: '20 questions with AI', icon: '❓' },
+      ];
+
+      const addToHistory = (item) => {
+        setHistory(prev => [item, ...prev].slice(0, 50));
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col grid-bg">
+          {/* Header */}
+          <header className="p-4 sm:p-6 flex justify-between items-center">
+            <div className="flex items-center">
+              <div className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-400 neon-text">
+                Shift_GPT
+              </div>
+              <div className="ml-3 text-xs bg-indigo-600 px-2 py-1 rounded-full">Premium</div>
+            </div>
+            
+            <button 
+              onClick={() => setCurrentTool(null)}
+              className="p-2 bg-gray-800 hover:bg-gray-700 rounded-full sm:hidden"
+              aria-label="Back to hub"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </header>
+          
+          <div className="flex-1 flex flex-col items-center p-4 sm:p-8">
+            {!currentTool ? (
+              <div className="max-w-6xl w-full">
+                <div className="text-center mb-10 sm:mb-16">
+                  <h1 className="text-4xl sm:text-6xl font-bold mb-4">
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-400 neon-text">
+                      AI-Powered Tools
+                    </span>
+                  </h1>
+                  <p className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto">
+                    Premium multi-tool platform by HackClubber Hardrik Thomas Shaji
+                  </p>
+                  
+                  <div className="mt-6 inline-flex items-center px-4 py-2 bg-gray-800/50 rounded-full">
+                    <span className="status-indicator status-active"></span>
+                    <span>API Status: Operational</span>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {tools.map((tool) => (
+                    <ToolCard
+                      key={tool.id}
+                      title={tool.title}
+                      description={tool.description}
+                      icon={tool.icon}
+                      onClick={() => setCurrentTool(tool.id)}
+                    />
+                  ))}
+                </div>
+                
+                <div className="mt-16 text-center text-gray-500 text-sm">
+                  <p>Powered by OpenRouter AI • Shift_GPT v3.0</p>
+                  <p className="mt-2">Robust API error handling with retry mechanism</p>
+                </div>
+              </div>
+            ) : (
+              <ToolInterface tool={currentTool} onBack={() => setCurrentTool(null)} addToHistory={addToHistory} />
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
