@@ -1,4 +1,6 @@
 # Shift_GPT: Your AI-Powered Sidekick 🚀
+![image](https://github.com/user-attachments/assets/36bd9630-86a5-4f75-bd93-5b1cb0ed1083)
+
 Yo, welcome to Shift_GPT, the slickest AI multi-tool platform you'll ever vibe with! 🌌 Built by HackClubber Hardrik Thomas Shaji, this bad boy’s got a neon-charged, cyberpunk aesthetic and all the tools you need to crush it—whether you’re chatting with AI, coding like a pro, or translating on the fly. It’s your genius buddy, no coffee runs required! 😎
 What’s in the Toolbox? 🛠️
 Here’s the lineup of Shift_GPT’s killer features, each with a spot for a screenshot to show off the magic:
